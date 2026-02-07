@@ -4,7 +4,7 @@
 // On localhost: uses explicit 'http://127.0.0.1:8000/api'
 const API_BASE_URL = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost' || window.location.protocol === 'file:')
     ? 'http://127.0.0.1:8000/api'
-    : 'https://backend1-bzh1.onrender.com/api'; // Point to Render Backend explicitly
+    : 'https://nexuxbackend.onrender.com/api'; // Point to Render Backend explicitly
 
 // Check if running from file:// which breaks OAuth
 if (window.location.protocol === 'file:') {
