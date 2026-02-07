@@ -37,6 +37,10 @@ const API_BASE_URL = isLocal
     ? LOCAL_API_BASE
     : (window.__API_BASE_URL__ || PROD_API_DEFAULT);
 
+console.log("------------------------------------------");
+console.log(" FRONTEND VERSION 2.5 - CONNECTING TO CLASSBRIDGE BACKEND");
+console.log("------------------------------------------");
+
 console.log("ClassBridge API Base URL:", API_BASE_URL);
 // Check if running from file:// which breaks OAuth
 if (window.location.protocol === 'file:') {
