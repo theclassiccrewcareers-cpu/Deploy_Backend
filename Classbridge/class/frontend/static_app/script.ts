@@ -4,7 +4,7 @@
 // On localhost: uses explicit 'http://127.0.0.1:8000/api'
 const API_BASE_URL = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost' || window.location.protocol === 'file:')
     ? 'http://127.0.0.1:8000/api'
-    : 'https://backend1-bzh1.onrender.com/api'; // Point to Render Backend explicitly
+    : 'https://nexuxbackend.onrender.com/api'; // Point to Render Backend explicitly
 
 // Check if running from file:// which breaks OAuth
 if (window.location.protocol === 'file:') {
@@ -2799,210 +2799,37 @@ function checkPasswordStrength(password) {
         isValid = false;
     }
 
-    if (isValid) {
-        msgEl.textContent = "✅ Strong password";
-        msgEl.className = "small mb-3 ms-1 fw-bold text-success";
-        return true;
-    } else {
-        msgEl.textContent = "⚠️ Weak: " + feedback.join(", ");
-        msgEl.className = "small mb-3 ms-1 fw-bold text-danger";
-        return false;
-    }
+    msgEl.textContent = feedback.join(", ");
+    msgEl.className = isValid ? "text-success small" : "text-danger small";
+    return isValid;
 }
 
-// FR-3 & FR-4: Role Handling and Invitation Logic
-function handleRoleChange() {
-    const role = (document.getElementById('reg-role') as HTMLInputElement).value;
-    const studentFields = document.querySelector('#register-form .row') as HTMLInputElement; // Grade/Subject fields
+// --- ROLE SELECTION & UI UPDATES ---
+function selectLoginRole(role: string) {
+    const roleInput = document.getElementById('selected-role') as HTMLInputElement;
+    if (roleInput) roleInput.value = role;
 
-    if (role === 'Student') {
-        studentFields.style.display = 'flex';
-        (document.getElementById('reg-grade') as HTMLInputElement).required = true;
-    } else {
-        studentFields.style.display = 'none';
-        (document.getElementById('reg-grade') as HTMLInputElement).required = false;
-    }
-}
+    const roleLabel = document.getElementById('login-role-label');
+    if (roleLabel) roleLabel.textContent = role;
 
-async function generateInvite() {
-    const role = (document.getElementById('invite-role') as HTMLInputElement).value;
-    const resultDiv = document.getElementById('invite-result') as HTMLInputElement;
-
-    resultDiv.classList.remove('d-none');
-    resultDiv.textContent = 'Generating...';
-
-    try {
-        const response = await fetchAPI('/invitations/generate', {
-            method: 'POST',
-            body: JSON.stringify({ role: role, expiry_hours: 48 })
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            const link = window.location.origin + "/?invite=" + data.token;
-            resultDiv.innerHTML = `
-                <strong>Token:</strong> ${data.token}<br>
-                <div class="input-group input-group-sm mt-1">
-                    <input type="text" class="form-control" value="${link}" readonly>
-                    <button class="btn btn-outline-secondary" onclick="navigator.clipboard.writeText('${link}')">Copy</button>
-                </div>
-                <small class="text-danger">Expires: ${new Date(data.expires_at).toLocaleString()}</small>
-            `;
-        } else {
-            resultDiv.textContent = 'Error generating invite.';
-        }
-    } catch (e) {
-        console.error(e);
-        resultDiv.textContent = 'Network error.';
-    }
-}
-
-// Check for Invite Token in URL
-document.getElementById('register-form').addEventListener('submit', handleRegister);
-document.getElementById('forgot-password-form').addEventListener('submit', handleForgotPassword);
-document.getElementById('reset-password-form').addEventListener('submit', handleResetPasswordSubmit); // New Listener
-
-function openForgotPassword(e) {
-    if (e) e.preventDefault();
-    (document.getElementById('forgot-password-form') as HTMLFormElement).reset();
-    document.getElementById('reset-message').textContent = '';
-    elements.forgotPasswordModal.show();
-}
-
-async function handleForgotPassword(e) {
-    e.preventDefault();
-    const email = (document.getElementById('reset-email') as HTMLInputElement).value;
-    const msg = document.getElementById('reset-message') as HTMLInputElement;
-
-    msg.textContent = 'Sending request...';
-    msg.className = 'text-center fw-medium small mb-2 text-primary';
-
-    try {
-        const response = await fetchAPI('/auth/forgot-password', {
-            method: 'POST',
-            body: JSON.stringify({ email })
-        });
-
-        const data = await response.json();
-
-        // DEV MODE: Show Link
-        if (data.dev_link) {
-            msg.innerHTML = `
-                <div class="alert alert-success small p-2 mt-2">
-                    ${data.message}<br>
-                    <a href="${data.dev_link}" class="btn btn-sm btn-success mt-2 fw-bold w-100">
-                        <span class="material-icons align-middle" style="font-size: 16px;">email</span> Open Simulated Email
-                    </a>
-                </div>`;
-            msg.className = 'text-center small mb-2';
-        } else {
-            msg.textContent = data.message;
-            msg.className = 'text-center fw-medium small mb-2 text-success';
-        }
-
-    } catch (err) {
-        msg.textContent = 'Network error.';
-        msg.className = 'text-center fw-medium small mb-2 text-danger';
-    }
-}
-
-// Reset Password Logic
-window.addEventListener('DOMContentLoaded', () => {
-    // Check for Invite
-    const urlParams = new URLSearchParams(window.location.search);
-    const inviteToken = urlParams.get('invite');
-    if (inviteToken) {
-        showRegister(new Event('click'));
-        (document.getElementById('reg-invite') as HTMLInputElement).value = inviteToken;
-        const msg = document.getElementById('register-message') as HTMLInputElement;
-        msg.textContent = "Invitation code applied! Please complete registration.";
-        msg.className = "text-primary fw-medium";
-    }
-
-    // Check for Reset Token
-    const resetToken = urlParams.get('reset_token');
-    if (resetToken) {
-        (document.getElementById('reset-token') as HTMLInputElement).value = resetToken;
-        new bootstrap.Modal(document.getElementById('resetPasswordModal')).show();
-        // Clean URL visual
-        window.history.replaceState({}, document.title, window.location.pathname);
-    }
-});
-
-async function handleResetPasswordSubmit(e) {
-    e.preventDefault();
-    const token = (document.getElementById('reset-token') as HTMLInputElement).value;
-    const newPass = (document.getElementById('new-reset-pass') as HTMLInputElement).value;
-    const confirmPass = (document.getElementById('confirm-reset-pass') as HTMLInputElement).value;
-    const msg = document.getElementById('new-reset-message') as HTMLInputElement;
-
-    if (newPass !== confirmPass) {
-        msg.textContent = 'Passwords do not match.';
-        msg.className = 'text-danger fw-bold text-center mb-3';
-        return;
-    }
-
-    if (!checkPasswordStrength(newPass)) {
-        msg.textContent = 'Password is too weak.';
-        msg.className = 'text-danger fw-bold text-center mb-3';
-        return;
-    }
-
-    try {
-        const response = await fetchAPI('/auth/reset-password', {
-            method: 'POST',
-            body: JSON.stringify({ token: token, new_password: newPass })
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-            msg.textContent = "Success! Redirecting to login...";
-            msg.className = "text-success fw-bold text-center mb-3";
-            setTimeout(() => {
-                bootstrap.Modal.getInstance(document.getElementById('resetPasswordModal')).hide();
-                showLogin(null);
-            }, 2000);
-        } else {
-            msg.textContent = data.detail || "Reset failed.";
-            msg.className = "text-danger fw-bold text-center mb-3";
-        }
-    } catch (e) {
-        msg.textContent = "Network error.";
-        msg.className = "text-danger fw-bold text-center mb-3";
-    }
-}
-
-// FR-Role-Selection
-function selectLoginRole(role) {
-    // 1. Update State
-    (document.getElementById('selected-role') as HTMLInputElement).value = role;
-
-    // 2. Update UI (New Elements)
-    const labelEl = document.getElementById('login-role-label') as HTMLInputElement;
-    if (labelEl) labelEl.textContent = role;
-
-    const iconEl = document.getElementById('login-role-icon') as HTMLInputElement;
-    const iconMap = {
+    const roleIcon = document.getElementById('login-role-icon');
+    const iconMap: { [key: string]: string } = {
         'Student': 'school',
-        'Teacher': 'favorite',
-        'Parent': 'home',
-        'Admin': 'badge',
-        'Principal': 'account_balance'
+        'Teacher': 'person',
+        'Parent': 'family_restroom',
+        'Principal': 'account_balance',
+        'Admin': 'admin_panel_settings'
     };
-    if (iconEl && iconMap[role]) {
-        iconEl.textContent = iconMap[role];
-    }
+    if (roleIcon) roleIcon.textContent = iconMap[role] || 'person';
 
-    // 3. Update Title & Labels
-    const titleMap = {
+    const titleMap: { [key: string]: string } = {
         'Student': 'Student Login',
         'Teacher': 'Teacher Portal',
         'Parent': 'Parent Access',
         'Principal': 'Principal Login',
         'Admin': 'Super Admin'
     };
-    const titleEl = document.getElementById('login-title') as HTMLInputElement;
+    const titleEl = document.getElementById('login-title');
     if (titleEl) titleEl.textContent = titleMap[role] || 'Login';
 
     const lbl = document.querySelector('label[for="username"]');
@@ -4890,44 +4717,47 @@ async function openEditStudentModal(studentId) {
     modal.show();
 
     try {
-        // Fetch fresh data
+        // Fetch fresh data (mainly for scores)
         const response = await fetchAPI(`/students/${studentId}/data`);
-        if (!response.ok) throw new Error("Failed to fetch student data");
+        let summaryData = null;
+        if (response.ok) {
+            const data = await response.json();
+            summaryData = data.summary;
+        }
 
-        const data = await response.json();
-        const student = appState.allStudents.find(s => s.id == studentId) || {};
+        // Get basic details from Roster (appState) - Handle both Capitalized (Backend) and Lowercase keys
+        const student = appState.allStudents.find(s => s.ID == studentId || s.id == studentId) || {};
 
-        // Merge detail data with roster data if needed, but roster usually has basics
-        // Actually, let's use the roster data for basics + summary for scores if available
-        // Or better, fetch the raw student object if we had an endpoint. 
-        // We will stick to updating what we have in the UI + scores.
+        const sId = student.ID || student.id || studentId;
+        const sName = student.Name || student.name || '';
+        const sGrade = student.Grade || student.grade || '';
+        const sSubject = student.Subject || student.preferred_subject || '';
+        const sAttendance = student['Attendance %'] || student.attendance_rate || 0;
+        const sLang = student['Home Language'] || student.home_language || '';
 
-        (document.getElementById('edit-id') as HTMLInputElement).value = student.id;
-        document.getElementById('edit-id-display').textContent = student.id;
-        (document.getElementById('edit-name') as HTMLInputElement).value = student.name;
-        (document.getElementById('edit-grade') as HTMLInputElement).value = student.grade;
-        (document.getElementById('edit-subject') as HTMLInputElement).value = student.preferred_subject;
-        (document.getElementById('edit-attendance') as HTMLInputElement).value = student.attendance_rate;
-        (document.getElementById('edit-lang') as HTMLInputElement).value = student.home_language || ''; // Check if home_language is in roster?
+        (document.getElementById('edit-id') as HTMLInputElement).value = sId;
+        document.getElementById('edit-id-display').textContent = sId;
+        (document.getElementById('edit-name') as HTMLInputElement).value = sName;
+        (document.getElementById('edit-grade') as HTMLInputElement).value = sGrade;
+        (document.getElementById('edit-subject') as HTMLInputElement).value = sSubject;
+        (document.getElementById('edit-attendance') as HTMLInputElement).value = sAttendance;
+        (document.getElementById('edit-lang') as HTMLInputElement).value = sLang;
 
-        // If home_language missing in roster object, we might need a dedicated GET /students/{id} 
-        // But for now, let's assume it's in the object or we default to empty.
+        // Scores - prioritize fetched summary data, fallback to defaults
+        const math = summaryData ? summaryData.math_score : (student.math_score || 0);
+        const sci = summaryData ? summaryData.science_score : (student.science_score || 0);
+        const eng = summaryData ? summaryData.english_language_score : (student.english_language_score || 0);
 
-        // Scores - derived from summary or roster? Roster has them.
-        const math = student.math_score || 0;
-        const sci = student.science_score || 0;
-        const eng = student.english_language_score || 0;
-
-        (document.getElementById('edit-math-score') as HTMLInputElement).value = math;
-        (document.getElementById('rng-math') as HTMLInputElement).value = math;
+        (document.getElementById('edit-math-score') as HTMLInputElement).value = String(math);
+        (document.getElementById('rng-math') as HTMLInputElement).value = String(math);
         document.getElementById('lbl-math').textContent = math + '%';
 
-        (document.getElementById('edit-science-score') as HTMLInputElement).value = sci;
-        (document.getElementById('rng-science') as HTMLInputElement).value = sci;
+        (document.getElementById('edit-science-score') as HTMLInputElement).value = String(sci);
+        (document.getElementById('rng-science') as HTMLInputElement).value = String(sci);
         document.getElementById('lbl-science').textContent = sci + '%';
 
-        (document.getElementById('edit-english-score') as HTMLInputElement).value = eng;
-        (document.getElementById('rng-english') as HTMLInputElement).value = eng;
+        (document.getElementById('edit-english-score') as HTMLInputElement).value = String(eng);
+        (document.getElementById('rng-english') as HTMLInputElement).value = String(eng);
         document.getElementById('lbl-english').textContent = eng + '%';
 
     } catch (e) {
@@ -4938,7 +4768,7 @@ async function openEditStudentModal(studentId) {
 }
 
 // Global helper for the manual button onclick in HTML
-window.submitEditStudentForm = async function () {
+(window as any).submitEditStudentForm = async function () {
     // Trigger the submit event on the form so the listener catches it
     elements.editStudentForm.dispatchEvent(new Event('submit'));
 };
@@ -4953,21 +4783,32 @@ async function handleEditStudentSubmit(e) {
 
     const studentId = (document.getElementById('edit-id') as HTMLInputElement).value;
 
+    // Helper to safely parse numbers
+    const safeParseInt = (val) => {
+        const parsed = parseInt(val);
+        return isNaN(parsed) ? 0 : parsed;
+    };
+
+    const safeParseFloat = (val) => {
+        const parsed = parseFloat(val);
+        return isNaN(parsed) ? 0.0 : parsed;
+    };
+
     const updatedData = {
         name: (document.getElementById('edit-name') as HTMLInputElement).value,
-        grade: parseInt((document.getElementById('edit-grade') as HTMLInputElement).value),
-        preferred_subject: (document.getElementById('edit-subject') as HTMLInputElement).value,
-        attendance_rate: parseFloat((document.getElementById('edit-attendance') as HTMLInputElement).value),
-        home_language: (document.getElementById('edit-lang') as HTMLInputElement).value,
-        math_score: parseFloat((document.getElementById('edit-math-score') as HTMLInputElement).value),
-        science_score: parseFloat((document.getElementById('edit-science-score') as HTMLInputElement).value),
-        english_language_score: parseFloat((document.getElementById('edit-english-score') as HTMLInputElement).value),
+        grade: safeParseInt((document.getElementById('edit-grade') as HTMLInputElement).value),
+        preferred_subject: (document.getElementById('edit-subject') as HTMLInputElement).value || "General",
+        attendance_rate: safeParseFloat((document.getElementById('edit-attendance') as HTMLInputElement).value),
+        home_language: (document.getElementById('edit-lang') as HTMLInputElement).value || "English",
+        math_score: safeParseFloat((document.getElementById('edit-math-score') as HTMLInputElement).value),
+        science_score: safeParseFloat((document.getElementById('edit-science-score') as HTMLInputElement).value),
+        english_language_score: safeParseFloat((document.getElementById('edit-english-score') as HTMLInputElement).value),
         password: (document.getElementById('edit-password') as HTMLInputElement).value || null
     };
 
     try {
         const response = await fetchAPI(`/students/${studentId}`, {
-            method: 'PUT', // Assuming PUT is the update method
+            method: 'PUT',
             body: JSON.stringify(updatedData)
         });
 
@@ -4984,8 +4825,16 @@ async function handleEditStudentSubmit(e) {
 
         } else {
             const data = await response.json();
-            msg.textContent = 'Error: ' + (data.detail || 'Update failed');
+            let errorDetail = data.detail || 'Update failed';
+
+            // Format object/array errors (like validation errors)
+            if (typeof errorDetail === 'object') {
+                errorDetail = JSON.stringify(errorDetail, null, 2);
+            }
+
+            msg.textContent = 'Error: ' + errorDetail;
             msg.classList.add('text-danger');
+            console.error("Edit Student Error:", data);
         }
     } catch (error) {
         msg.textContent = 'Network Error: ' + error.message;

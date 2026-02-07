@@ -30,9 +30,12 @@ const isLocal = (
     window.location.hostname.startsWith('192.168.') ||
     window.location.hostname.startsWith('10.')
 );
+const LOCAL_API_BASE = `http://${window.location.hostname === 'localhost' || !window.location.hostname ? '127.0.0.1' : window.location.hostname}:8000/api`;
+const PROD_API_DEFAULT = 'https://nexuxbackend.onrender.com/api';
+// Allow override via window.__API_BASE_URL__ (optional)
 const API_BASE_URL = isLocal
-    ? `http://${window.location.hostname === 'localhost' || !window.location.hostname ? '127.0.0.1' : window.location.hostname}:8000/api`
-    : 'https://backend1-bzh1.onrender.com/api';
+    ? LOCAL_API_BASE
+    : (window.__API_BASE_URL__ || PROD_API_DEFAULT);
 
 console.log("ClassBridge API Base URL:", API_BASE_URL);
 // Check if running from file:// which breaks OAuth
@@ -6353,9 +6356,10 @@ let whiteboardManager = {
         let wsUrl = (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost')
             ? 'ws://127.0.0.1:8000/ws/whiteboard'
             : `${protocol}//${window.location.host}/ws/whiteboard`;
-        // Explicit override if needed based on API_BASE_URL logic
+        // Explicit override based on API_BASE_URL (Render/WebSocket)
         if (API_BASE_URL.includes('onrender')) {
-            wsUrl = 'wss://backend1-bzh1.onrender.com/ws/whiteboard';
+            const backendRoot = API_BASE_URL.replace('/api', '');
+            wsUrl = backendRoot.replace('https://', 'wss://').replace('http://', 'ws://') + '/ws/whiteboard';
         }
         this.socket = new WebSocket(wsUrl);
         this.socket.onmessage = (event) => {
