@@ -9,7 +9,7 @@ import json
 from datetime import datetime
 
 # Configuration
-BACKEND_URL = "https://nexuxbackend.onrender.com"
+BACKEND_URL = "https://classbridge-backend-bqj3.onrender.com"
 FRONTEND_URL = "https://ed-tech-portal.vercel.app"
 
 def print_section(title):

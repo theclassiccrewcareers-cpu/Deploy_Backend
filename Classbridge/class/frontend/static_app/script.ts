@@ -6433,7 +6433,7 @@ let whiteboardManager = {
 
         // Explicit override if needed based on API_BASE_URL logic
         if (API_BASE_URL.includes('onrender')) {
-            wsUrl = 'wss://backend1-bzh1.onrender.com/ws/whiteboard';
+            wsUrl = 'wss://classbridge-backend-bqj3.onrender.com/ws/whiteboard';
         }
 
         this.socket = new WebSocket(wsUrl);
