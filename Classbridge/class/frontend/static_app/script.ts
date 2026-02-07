@@ -12133,3 +12133,4 @@ async function sendTeacherAIMessage() {
         history.appendChild(errDiv);
     }
 }
+ 
