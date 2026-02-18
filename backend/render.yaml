@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: classbridge-backend
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATABASE_URL
+        sync: false # Set this in the Render Dashboard
+      - key: GROQ_API_KEY
+        sync: false # Set this in the Render Dashboard
+      - key: GOOGLE_CLIENT_ID
+        sync: false # Optional: For Google OAuth
+      - key: SMTP_EMAIL
+        sync: false # Optional: For email notifications
+      - key: SMTP_PASSWORD
+        sync: false # Optional: For email notifications

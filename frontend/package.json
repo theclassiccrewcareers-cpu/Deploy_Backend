@@ -1,0 +1,14 @@
+{
+    "name": "classbridge-legacy",
+    "version": "1.0.0",
+    "description": "Legacy vanilla implementation",
+    "scripts": {
+        "build": "tsc",
+        "watch": "tsc -w"
+    },
+    "devDependencies": {
+        "typescript": "^5.0.0",
+        "@types/bootstrap": "^5.2.0",
+        "@types/chart.js": "^2.9.37"
+    }
+}

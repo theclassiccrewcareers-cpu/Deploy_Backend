@@ -1,0 +1,9 @@
+LUNCH PREFERENCE FORM
+
+Student Name:
+Grade/Section:
+Diet Type: Veg / Non-Veg / Custom
+Allergies:
+Lunch Days Required:
+Parent/Guardian Signature:
+Date:
