@@ -2743,8 +2743,20 @@ function switchView(viewId, updateHistory = true) {
     if (viewId === 'timetable-view') {
         if (typeof loadTimetable === 'function') loadTimetable();
     }
-    if (viewId === 'parent-attendance-view' && appState.role === 'Student') {
+    if (viewId === 'parent-timetable-view') {
+        if (typeof loadTimetable === 'function') loadTimetable();
+    }
+    if (viewId === 'parent-attendance-view' && (appState.role === 'Student' || isParentRole(appState.role))) {
         if (typeof loadStudentAttendanceView === 'function') loadStudentAttendanceView();
+    }
+    if (viewId === 'parent-fees-view') {
+        if (typeof loadParentFeesView === 'function') loadParentFeesView();
+    }
+    if (viewId === 'parent-leave-apply-view') {
+        if (typeof initParentLeaveApplyView === 'function') initParentLeaveApplyView();
+    }
+    if (viewId === 'parent-leave-status-view') {
+        if (typeof loadParentLeaveStatusView === 'function') loadParentLeaveStatusView();
     }
     if (viewId === 'attendance-sheet-view') {
         if (typeof initAttendanceSheetView === 'function') initAttendanceSheetView();
@@ -6041,9 +6053,9 @@ function loadStudentQuizResults(studentId) {
 function loadParentChildData() {
     return __awaiter(this, void 0, void 0, function* () {
         const childIdInput = document.getElementById('parent-child-id');
-        const childId = childIdInput.value.trim();
+        const childId = (childIdInput && childIdInput.value ? childIdInput.value.trim() : '') || (appState.activeStudentId || '').trim();
         if (!childId) {
-            alert("Please enter a Student ID.");
+            alert("No linked child found. Please login again or enter a Student ID.");
             return;
         }
         // UI Elements
@@ -6053,6 +6065,12 @@ function loadParentChildData() {
         const feedbackP = document.getElementById('parent-feedback');
         const attendanceEl = document.getElementById('parent-attendance');
         const chartDiv = document.getElementById('parent-progress-chart');
+        if (!contentDiv || !nameSpan || !metricsDiv || !feedbackP || !attendanceEl) {
+            console.error('Parent dashboard elements missing in DOM.');
+            alert('Parent dashboard UI is incomplete on this page. Open the app via http://127.0.0.1:8000/ for full view.');
+            return;
+        }
+        appState.activeStudentId = childId;
         contentDiv.classList.remove('d-none');
         nameSpan.textContent = "Loading...";
         metricsDiv.innerHTML = '<div class="spinner-border text-primary"></div>';
@@ -13622,12 +13640,16 @@ document.addEventListener('DOMContentLoaded', () => {
 // --- TIMETABLE & LEAVE ---
 function loadTimetable() {
     return __awaiter(this, void 0, void 0, function* () {
-        const container = document.getElementById('timetable-view');
+        const isParent = isParentRole(appState.role);
+        const container = document.getElementById(isParent ? 'parent-timetable-view' : 'timetable-view');
         if (!container)
             return;
         container.innerHTML = '<div class="text-center py-5"><span class="spinner-border text-primary"></span><p class="text-muted mt-2">Loading timetable...</p></div>';
-        const isStudent = appState.role === 'Student';
-        const endpoint = isStudent ? '/timetable/student/my' : `/timetable/teacher/${encodeURIComponent(appState.userId || '')}`;
+        const isStudent = appState.role === 'Student' || isParent;
+        let endpoint = isStudent ? '/timetable/student/my' : `/timetable/teacher/${encodeURIComponent(appState.userId || '')}`;
+        if (isParent && appState.activeStudentId) {
+            endpoint += `?student_id=${encodeURIComponent(appState.activeStudentId)}`;
+        }
         try {
             const res = yield fetchAPI(endpoint);
             if (!res.ok) {
@@ -13733,7 +13755,11 @@ function loadStudentAttendanceView() {
             const now = new Date();
             const selectedMonth = Number(view.dataset.selectedMonth || (now.getMonth() + 1));
             const selectedYear = Number(view.dataset.selectedYear || now.getFullYear());
-            const res = yield fetchAPI(`/attendance/student/my?month=${encodeURIComponent(String(selectedMonth))}&year=${encodeURIComponent(String(selectedYear))}&months_back=6`);
+            let attendanceEndpoint = `/attendance/student/my?month=${encodeURIComponent(String(selectedMonth))}&year=${encodeURIComponent(String(selectedYear))}&months_back=6`;
+            if (isParentRole(appState.role) && appState.activeStudentId) {
+                attendanceEndpoint += `&student_id=${encodeURIComponent(appState.activeStudentId)}`;
+            }
+            const res = yield fetchAPI(attendanceEndpoint);
             if (!res.ok) {
                 const err = yield res.json().catch(() => ({}));
                 throw new Error(err.detail || 'Failed to load attendance.');
@@ -14330,6 +14356,170 @@ async function loadMyLeaveHistory() {
 
     } catch (e) {
         listContainer.innerHTML = `<div class="text-danger p-3">Error loading history: ${e.message}</div>`;
+    }
+}
+
+async function loadParentFeesView() {
+    const view = document.getElementById('parent-fees-view');
+    if (!view)
+        return;
+    view.innerHTML = '<div class="text-center py-5"><span class="spinner-border text-primary"></span><p class="text-muted mt-2">Loading child fee data...</p></div>';
+    try {
+        const res = await fetchAPI('/finance/fees/child');
+        const payload = await res.json().catch(() => ({}));
+        if (!res.ok) {
+            throw new Error(payload.detail || 'Failed to load child fee invoices.');
+        }
+        const invoices = Array.isArray(payload.invoices) ? payload.invoices : [];
+        const totalDue = invoices
+            .filter(i => String(i.status || '').toLowerCase() !== 'paid')
+            .reduce((sum, i) => sum + Number(i.amount || 0), 0);
+        const rows = invoices.map(i => `
+            <tr>
+                <td class="ps-4">${i.student_id || '-'}</td>
+                <td>${i.invoice_number || '-'}</td>
+                <td>${i.description || '-'}</td>
+                <td>$${Number(i.amount || 0).toFixed(2)}</td>
+                <td>${i.due_date || '-'}</td>
+                <td><span class="badge ${String(i.status || '').toLowerCase() === 'paid' ? 'bg-success' : 'bg-warning text-dark'}">${i.status || 'Pending'}</span></td>
+            </tr>
+        `).join('');
+        view.innerHTML = `
+            <h3 class="fw-bold mb-4 text-dark">Child Fees</h3>
+            <div class="card border-0 shadow-sm rounded-4 mb-4">
+                <div class="card-body p-4 d-flex justify-content-between align-items-center">
+                    <div>
+                        <div class="small text-muted">Outstanding</div>
+                        <h4 class="fw-bold mb-0">$${totalDue.toFixed(2)}</h4>
+                    </div>
+                    <div class="text-muted small">Linked Students: ${(payload.child_ids || []).length}</div>
+                </div>
+            </div>
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="ps-4">Student</th>
+                                <th>Invoice</th>
+                                <th>Description</th>
+                                <th>Amount</th>
+                                <th>Due Date</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${rows || '<tr><td class="ps-4 text-muted" colspan="6">No fee invoices found.</td></tr>'}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    }
+    catch (e) {
+        view.innerHTML = `<div class="alert alert-danger mb-0">${e.message}</div>`;
+    }
+}
+
+function initParentLeaveApplyView() {
+    const view = document.getElementById('parent-leave-apply-view');
+    if (!view)
+        return;
+    const form = view.querySelector('form');
+    if (!form)
+        return;
+    if (form.dataset.bound === '1')
+        return;
+    form.dataset.bound = '1';
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const dateInputs = form.querySelectorAll('input[type="date"]');
+        const reasonEl = form.querySelector('textarea');
+        const start = dateInputs[0] ? dateInputs[0].value : '';
+        const end = dateInputs[1] ? dateInputs[1].value : '';
+        const reason = reasonEl ? reasonEl.value.trim() : '';
+        const targetStudentId = appState.activeStudentId || appState.userId;
+        if (!targetStudentId) {
+            alert('No linked student found for leave request.');
+            return;
+        }
+        if (!start || !end || !reason) {
+            alert('Please fill start date, end date, and reason.');
+            return;
+        }
+        const submitBtn = form.querySelector('button[type="submit"]');
+        const originalLabel = submitBtn ? submitBtn.textContent : '';
+        if (submitBtn)
+            submitBtn.textContent = 'Submitting...';
+        try {
+            const res = await fetchAPI('/leave/apply', {
+                method: 'POST',
+                body: JSON.stringify({
+                    user_id: targetStudentId,
+                    type: 'Parent Request',
+                    start_date: start,
+                    end_date: end,
+                    reason
+                })
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+                throw new Error(data.detail || 'Failed to submit leave request.');
+            }
+            alert('Leave request submitted.');
+            form.reset();
+            loadParentLeaveStatusView();
+        }
+        catch (err) {
+            alert(err.message || 'Failed to submit leave request.');
+        }
+        finally {
+            if (submitBtn)
+                submitBtn.textContent = originalLabel || 'Submit Request';
+        }
+    });
+}
+
+async function loadParentLeaveStatusView() {
+    const view = document.getElementById('parent-leave-status-view');
+    if (!view)
+        return;
+    const list = view.querySelector('.list-group');
+    if (!list)
+        return;
+    const targetStudentId = appState.activeStudentId || appState.userId;
+    if (!targetStudentId) {
+        list.innerHTML = '<div class="list-group-item text-muted">No linked student found.</div>';
+        return;
+    }
+    list.innerHTML = '<div class="list-group-item text-muted">Loading...</div>';
+    try {
+        const res = await fetchAPI(`/leave/my-history?user_id=${encodeURIComponent(targetStudentId)}`);
+        const rows = await res.json().catch(() => []);
+        if (!res.ok) {
+            throw new Error('Failed to load leave history.');
+        }
+        if (!Array.isArray(rows) || rows.length === 0) {
+            list.innerHTML = '<div class="list-group-item text-muted">No leave records found.</div>';
+            return;
+        }
+        list.innerHTML = rows.map((req) => {
+            const status = String(req.status || 'Pending');
+            const statusClass = status === 'Approved' ? 'bg-success' : (status === 'Rejected' || status === 'Denied' ? 'bg-danger' : 'bg-warning text-dark');
+            return `
+                <div class="list-group-item p-3 d-flex justify-content-between align-items-center">
+                    <div>
+                        <span class="fw-bold text-dark">${req.type || 'Leave Request'}</span>
+                        <div class="small text-muted">${req.start_date || '-'} - ${req.end_date || '-'}</div>
+                        <div class="small text-secondary">${req.reason || ''}</div>
+                    </div>
+                    <span class="badge ${statusClass} rounded-pill">${status}</span>
+                </div>
+            `;
+        }).join('');
+    }
+    catch (e) {
+        list.innerHTML = `<div class="list-group-item text-danger">${e.message}</div>`;
     }
 }
 
