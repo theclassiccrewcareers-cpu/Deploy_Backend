@@ -495,28 +495,57 @@ if USE_POSTGRES:
             project_ref = match.group(1)
             print(f"Detected Supabase Project Ref: {project_ref}")
             
-            # 2. Determine IPv4 Hostname (Regional Pooler)
-            # Based on user location (implied ap-south-1), we try the Mumbai pooler.
-            # This hostname 'aws-0-ap-south-1.pooler.supabase.com' resolves to IPv4.
-            ipv4_hostname = "aws-0-ap-south-1.pooler.supabase.com"
+            # Auto-detect region by trying multiple common poolers
+            # The error 'FATAL: Tenant or user not found' means we connected to the WRONG regional pooler.
+            pooler_regions = [
+                "aws-0-ap-south-1.pooler.supabase.com",      # Mumbai (Likely for India)
+                "aws-0-ap-southeast-1.pooler.supabase.com",  # Singapore (Common alternative)
+                "aws-0-us-east-1.pooler.supabase.com",       # N. Virginia (Default)
+                "aws-0-eu-central-1.pooler.supabase.com",    # Frankfurt
+                "aws-0-sa-east-1.pooler.supabase.com",       # Sao Paulo
+            ]
             
-            # 3. Construct New Connection String
-            # We need to:
-            # - Replace hostname with pooler hostname
-            # - Update username to 'postgres.[ref]' (required for pooler)
-            # - Keep port 5432 (Session Mode) for best compatibility, or 6543 (Transaction Mode)
-            # Let's use 5432 Session Mode first as it acts like a normal DB.
+            found_working_pooler = False
             
-            # Replace hostname
-            new_url = DATABASE_URL_ENV.replace(match.group(0), ipv4_hostname)
+            # Temporary import for connection testing
+            try:
+                import psycopg2
+            except ImportError:
+                print("psycopg2 not found, skipping pooler auto-detection.")
+                pooler_regions = []
+
+            for region_host in pooler_regions:
+                try:
+                    # Construct candidate URL
+                    candidate_url = DATABASE_URL_ENV.replace(match.group(0), region_host)
+                    
+                    # Update username format: 'postgres' -> 'postgres.[ref]'
+                    if "postgres:" in candidate_url and f"postgres.{project_ref}" not in candidate_url:
+                        candidate_url = candidate_url.replace("postgres:", f"postgres.{project_ref}:")
+                    
+                    print(f"Testing Supabase connection via {region_host}...")
+                    
+                    # Test connection with short timeout
+                    # Note: We must strip 'postgresql://' prefix for urlparse if needed, but psycopg2 accepts URI.
+                    # We pass connect_timeout=3 to fail fast on network issues or bad region.
+                    conn = psycopg2.connect(candidate_url, connect_timeout=3)
+                    conn.close()
+                    
+                    # If we reach here, connection succeeded!
+                    print(f"SUCCESS: Connected via {region_host}")
+                    DATABASE_URL = candidate_url
+                    found_working_pooler = True
+                    break
+                    
+                except Exception as e:
+                    # If error is about tenant, it means wrong region. If network, means wrong region or down.
+                    print(f"Failed {region_host}: {e}")
             
-            # Update username if it is just 'postgres' -> 'postgres.[ref]'
-            # Check for 'postgres:' in the string (user part)
-            if "postgres:" in new_url and f"postgres.{project_ref}" not in new_url:
-                new_url = new_url.replace("postgres:", f"postgres.{project_ref}:")
-                
-            print(f"Switched to Supabase IPv4 Pooler URL for connectivity.")
-            DATABASE_URL = new_url
+            if not found_working_pooler:
+                print("Could not auto-detect correct Supabase region. Defaulting to DATABASE_URL provided.")
+                DATABASE_URL = DATABASE_URL_ENV
+            else:
+                 print(f"Supabase Auto-Configuration Complete.")
             
             # CRITICAL: Update env vars so other modules (like rbac_module/database.py) see the fixed URL
             os.environ["DATABASE_URL"] = DATABASE_URL
