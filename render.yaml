@@ -53,6 +53,11 @@ services:
       - key: VERIFICATION_LINK_BASE
         value: "https://classbridge-rswq.onrender.com"
 
+      # ── Teacher login alias ───────────────────────────────────────────────
+      # This email maps to the 'teacher' user ID in the database
+      - key: TEACHER_LOGIN_ALIAS
+        value: "teachernoblenexus@gmail.com"
+
       # ── Admin credentials ────────────────────────────────────────────────
       - key: ADMIN_LOGIN_EMAIL
         sync: false
