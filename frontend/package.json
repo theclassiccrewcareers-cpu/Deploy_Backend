@@ -1,10 +1,14 @@
 {
     "name": "classbridge-legacy",
     "version": "1.0.0",
-    "description": "Legacy vanilla implementation",
+    "description": "ClassBridge EdTech Frontend - Static HTML/JS App",
     "scripts": {
-        "build": "tsc",
-        "watch": "tsc -w"
+        "start": "npx serve -s . -l 3000",
+        "build": "echo 'Static site — no build step required'",
+        "dev": "npx serve -s . -l 3000"
+    },
+    "dependencies": {
+        "serve": "^14.2.3"
     },
     "devDependencies": {
         "typescript": "^5.0.0",
