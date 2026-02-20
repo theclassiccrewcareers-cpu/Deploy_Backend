@@ -495,19 +495,30 @@ if USE_POSTGRES:
             project_ref = match.group(1)
             print(f"Detected Supabase Project Ref: {project_ref}")
             
-            # Auto-detect region by trying multiple common poolers
-            # The error 'FATAL: Tenant or user not found' means we connected to the WRONG regional pooler.
+            # Auto-detect region by trying ALL common Supabase regions with Port 6543 (IPv4 Transaction Mode)
+            # Port 6543 is critical for IPv4 connectivity via the pooler.
             pooler_regions = [
-                "aws-0-ap-south-1.pooler.supabase.com",      # Mumbai (Likely for India)
-                "aws-0-ap-southeast-1.pooler.supabase.com",  # Singapore (Common alternative)
-                "aws-0-us-east-1.pooler.supabase.com",       # N. Virginia (Default)
-                "aws-0-eu-central-1.pooler.supabase.com",    # Frankfurt
+                # Asia
+                "aws-0-ap-south-1.pooler.supabase.com",      # Mumbai
+                "aws-0-ap-southeast-1.pooler.supabase.com",  # Singapore
+                "aws-0-ap-northeast-1.pooler.supabase.com",  # Tokyo
+                "aws-0-ap-northeast-2.pooler.supabase.com",  # Seoul
+                "aws-0-ap-southeast-2.pooler.supabase.com",  # Sydney
+                # US/Americas
+                "aws-0-us-east-1.pooler.supabase.com",       # N. Virginia
+                "aws-0-us-west-1.pooler.supabase.com",       # N. California
+                "aws-0-us-west-2.pooler.supabase.com",       # Oregon
                 "aws-0-sa-east-1.pooler.supabase.com",       # Sao Paulo
+                "aws-0-ca-central-1.pooler.supabase.com",    # Canada
+                # Europe
+                "aws-0-eu-central-1.pooler.supabase.com",    # Frankfurt
+                "aws-0-eu-west-1.pooler.supabase.com",       # Ireland
+                "aws-0-eu-west-2.pooler.supabase.com",       # London
+                "aws-0-eu-west-3.pooler.supabase.com",       # Paris
             ]
             
             found_working_pooler = False
             
-            # Temporary import for connection testing
             try:
                 import psycopg2
             except ImportError:
@@ -519,40 +530,47 @@ if USE_POSTGRES:
                     # Construct candidate URL
                     candidate_url = DATABASE_URL_ENV.replace(match.group(0), region_host)
                     
-                    # Update username format: 'postgres' -> 'postgres.[ref]'
+                    # SWITCH TO PORT 6543 (Transaction Mode) - Required for proper IPv4 pooling
+                    candidate_url = candidate_url.replace(":5432", ":6543")
+                    
+                    # Update username: 'postgres' -> 'postgres.[ref]'
                     if "postgres:" in candidate_url and f"postgres.{project_ref}" not in candidate_url:
                         candidate_url = candidate_url.replace("postgres:", f"postgres.{project_ref}:")
+                        
+                    # Add sslmode=require if missing (needed for pooler)
+                    if "sslmode=" not in candidate_url:
+                        sep = "&" if "?" in candidate_url else "?"
+                        candidate_url += f"{sep}sslmode=require"
                     
-                    print(f"Testing Supabase connection via {region_host}...")
+                    print(f"Testing Supabase connection via {region_host} (Port 6543)...")
                     
-                    # Test connection with short timeout
-                    # Note: We must strip 'postgresql://' prefix for urlparse if needed, but psycopg2 accepts URI.
-                    # We pass connect_timeout=3 to fail fast on network issues or bad region.
-                    conn = psycopg2.connect(candidate_url, connect_timeout=3)
+                    # Test connection fast
+                    conn = psycopg2.connect(candidate_url, connect_timeout=2)
                     conn.close()
                     
-                    # If we reach here, connection succeeded!
+                    # SUCCESS
                     print(f"SUCCESS: Connected via {region_host}")
                     DATABASE_URL = candidate_url
                     found_working_pooler = True
                     break
                     
                 except Exception as e:
-                    # If error is about tenant, it means wrong region. If network, means wrong region or down.
-                    print(f"Failed {region_host}: {e}")
+                    # 'Tenant or user not found' = Wrong Region
+                    # 'Network is unreachable' = Blocked or Down
+                    pass # Silent fail to try next
             
             if not found_working_pooler:
-                print("Could not auto-detect correct Supabase region. Defaulting to DATABASE_URL provided.")
+                print("Could not auto-detect correct Supabase region (checked 14 regions). Defaulting to original.")
                 DATABASE_URL = DATABASE_URL_ENV
             else:
                  print(f"Supabase Auto-Configuration Complete.")
             
-            # CRITICAL: Update env vars so other modules (like rbac_module/database.py) see the fixed URL
+            # CRITICAL: Update env vars
             os.environ["DATABASE_URL"] = DATABASE_URL
             os.environ["RBAC_DATABASE_URL"] = DATABASE_URL
             
         else:
-            # Fallback for non-Supabase or unknown format
+            # Fallback
             DATABASE_URL = DATABASE_URL_ENV
             
     except Exception as e:
@@ -560,7 +578,6 @@ if USE_POSTGRES:
         DATABASE_URL = DATABASE_URL_ENV
 
     SQLITE_DB_PATH = None
-
 else:
     DATABASE_URL = DATABASE_URL_ENV
     sqlite_candidate = (DATABASE_URL_ENV or "class_bridge.db").strip()
