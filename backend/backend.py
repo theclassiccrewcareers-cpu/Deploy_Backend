@@ -481,9 +481,9 @@ origins = [
 # Database selection:
 # - Default behavior is LOCAL SQLite for reliability in local development.
 # - Postgres is used only when USE_POSTGRES=true.
-USE_POSTGRES = os.getenv("USE_POSTGRES", "false").lower() == "true"
 DATABASE_URL_ENV = os.getenv("DATABASE_URL", "class_bridge.db")
-if USE_POSTGRES and "postgres" in DATABASE_URL_ENV.lower():
+USE_POSTGRES = os.getenv("USE_POSTGRES", "false").lower() == "true" or "postgres" in DATABASE_URL_ENV.lower()
+if USE_POSTGRES:
     DATABASE_URL = DATABASE_URL_ENV
     SQLITE_DB_PATH = None
 else:
