@@ -5689,8 +5689,8 @@ function renderTeacherDashboard() {
             elements.teacherMetrics.innerHTML = '';
             renderMetric(elements.teacherMetrics, "dashboard_students", data.total_students, 'widget-purple');
             renderMetric(elements.teacherMetrics, "dashboard_teachers", data.total_teachers || 0, 'widget-yellow');
-            renderMetric(elements.teacherMetrics, "dashboard_staff", "29,300", 'widget-blue');
-            renderMetric(elements.teacherMetrics, "dashboard_awards", "95,800", 'widget-green');
+            renderMetric(elements.teacherMetrics, "dashboard_staff", data.total_staff || 0, 'widget-blue');
+            renderMetric(elements.teacherMetrics, "dashboard_awards", data.total_awards || 0, 'widget-green');
             // Roster Table
             let tableHTML = '';
             data.roster.forEach(student => {

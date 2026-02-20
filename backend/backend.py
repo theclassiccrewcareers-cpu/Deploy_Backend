@@ -918,6 +918,8 @@ class TeacherOverviewResponse(BaseModel):
     roster: List[Dict[str, Any]] 
     school_name: Optional[str] = None
     total_teachers: int = 0
+    total_staff: int = 0
+    total_awards: int = 0
 
 class AIChatRequest(BaseModel):
     prompt: str
@@ -7930,9 +7932,31 @@ async def get_teacher_overview(
         else:
             class_avg_score = 0.0
 
-        # 4. Fetch Teachers Count
-        total_teachers = conn.execute("SELECT COUNT(*) FROM students WHERE role IN ('Teacher', 'Principal', 'Admin') AND school_id = ?", (school_id,)).fetchone()[0]
-        
+        # 4. Fetch real counts from DB
+        total_teachers = conn.execute(
+            "SELECT COUNT(*) FROM students WHERE role IN ('Teacher', 'Principal', 'Admin') AND school_id = ?",
+            (school_id,)
+        ).fetchone()[0]
+
+        total_staff = conn.execute(
+            "SELECT COUNT(*) FROM students WHERE role NOT IN ('Student') AND school_id = ?",
+            (school_id,)
+        ).fetchone()[0]
+
+        # Awards = total quiz attempts with score >= 80 for this school's students
+        try:
+            total_awards = conn.execute(
+                "SELECT COUNT(*) FROM quiz_attempts qa JOIN students s ON qa.student_id = s.id "
+                "WHERE s.school_id = ? AND qa.score >= 80",
+                (school_id,)
+            ).fetchone()[0]
+        except Exception:
+            total_awards = 0
+
+        # School name
+        school_row = conn.execute("SELECT name FROM schools WHERE id = ?", (school_id,)).fetchone()
+        school_name = school_row['name'] if school_row else "Noble Nexus Academy"
+
     finally:
         conn.close()
 
@@ -7941,7 +7965,10 @@ async def get_teacher_overview(
         class_attendance_avg=round(class_avg_attendance, 1),
         class_score_avg=round(class_avg_score, 1),
         roster=roster_list,
-        total_teachers=total_teachers
+        total_teachers=total_teachers,
+        total_staff=total_staff,
+        total_awards=total_awards,
+        school_name=school_name
     )
 
 @app.post("/api/students/add", status_code=201)
