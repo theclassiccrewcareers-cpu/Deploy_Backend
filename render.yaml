@@ -20,11 +20,9 @@ services:
       - key: SMTP_PASSWORD
         sync: false
 
-  # Frontend Service (Static Site)
-  - type: static
-    name: classbridge-frontend
+staticSites:
+  - name: classbridge-frontend
     rootDir: frontend
-    env: node
     buildCommand: npm install && npm run build
     staticPublishPath: ./
     routes:
